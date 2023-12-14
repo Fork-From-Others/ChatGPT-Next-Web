@@ -1,5 +1,6 @@
 import md5 from "spark-md5";
 import { DEFAULT_MODELS } from "../constant";
+import { online_codes_set } from "@/app/config/code";
 
 declare global {
   namespace NodeJS {
@@ -30,53 +31,13 @@ declare global {
   }
 }
 
-// 从远程获取Code
-async function getOnlineCodes() {
-  const today = new Date();
-  try {
-    const res = await fetch(
-      "https://aipark.oss-cn-hangzhou.aliyuncs.com/chatglm/code.csv" +
-        "?t=" +
-        today.getTime(),
-    );
-    const text = await res.text();
-    const lines = text.split("\n").map((v) => v.trim());
-    const validCodes = lines
-      .slice(1)
-      .map((line) => {
-        const [code, expireAt] = line
-          .split(",")
-          .map((v_1) => v_1.trim())
-          .filter(Boolean);
-        const expireDate = new Date(expireAt);
-        if (expireDate > today) {
-          return md5.hash(code);
-        }
-      })
-      .filter(Boolean);
-    console.log(`[Server Config] using ${validCodes.length} online codes`);
-    return new Set(validCodes);
-  } catch (e) {
-    console.error("Failed to fetch or parse remote config:", e);
-    return new Set();
-  }
-}
-
-const ACCESS_CODES = await (async function getAccessCodes(): Promise<
-  Set<string>
-> {
+const ACCESS_CODES = (function getAccessCodes(): Set<string> {
   const code = process.env.CODE;
+
   try {
     const codes = (code?.split(",") ?? [])
       .filter((v) => !!v)
       .map((v) => md5.hash(v.trim()));
-    console.log(`[Server Config] using ${codes.length} static codes`);
-    await getOnlineCodes().then((onlineCodes) => {
-      onlineCodes.forEach((code) => {
-        codes.push(code as string);
-      });
-    });
-    console.log(`[Server Config] using ${codes.length} access codes`);
     return new Set(codes);
   } catch (e) {
     return new Set();
